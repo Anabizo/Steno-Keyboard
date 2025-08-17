@@ -16,5 +16,5 @@ module_init(hello_init);
 module_exit(hello_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Seu Nome");
+MODULE_AUTHOR("Bizo");
 MODULE_DESCRIPTION("Hello World para módulo de kernel");

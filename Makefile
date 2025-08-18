@@ -1,4 +1,4 @@
-obj-m += teclas_vb.o
+obj-m += steno.o
 
 KDIR := /lib/modules/$(shell uname -r)/build
 PWD  := $(shell pwd)
@@ -10,16 +10,16 @@ clean:
 	$(MAKE) -C $(KDIR) M=$(PWD) clean
 
 install:
-	sudo insmod teclas_vb.ko
+	sudo insmod steno.ko
 
 remove:
-	sudo rmmod teclas_vb
+	sudo rmmod steno
 
 reload:
-	-sudo rmmod teclas_vb
-	sudo insmod teclas_vb.ko
+	-sudo rmmod steno
+	sudo insmod steno.ko
 
 test:
-	dmesg | tail -20
+	sudo dmesg -w
 
 .PHONY: all clean install remove reload test

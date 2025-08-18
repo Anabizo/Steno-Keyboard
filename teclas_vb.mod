@@ -1,1 +1,0 @@
-./teclas_vb.o

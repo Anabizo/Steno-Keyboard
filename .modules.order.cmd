@@ -1,1 +1,1 @@
-savedcmd_modules.order := {   echo teclas_vb.o; :; } > modules.order
+savedcmd_modules.order := {   echo steno.o; :; } > modules.order

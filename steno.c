@@ -21,6 +21,7 @@ struct kb_handle {
 };
 
 static void clear_buffer(struct kb_handle *kh);
+static void inject_string(const char* str);
 
 static void clear_buffer(struct kb_handle *kh)
 {
@@ -71,6 +72,60 @@ static bool remove_last_char_from_buffer(struct kb_handle *kh)
     return true;
 }
 
+static void inject_string(const char* str)
+{
+    int i;
+    int len = strlen(str);
+    
+    if (!virtual_dev) {
+        pr_err("stenography: dispositivo virtual não disponível\n");
+        return;
+    }
+    
+    pr_info("stenography: injetando string: '%s'\n", str);
+    
+    static const struct {
+        char c;
+        int keycode;
+    } char_to_keycode[] = {
+        {'q', KEY_Q}, {'w', KEY_W}, {'e', KEY_E}, {'r', KEY_R},
+        {'t', KEY_T}, {'y', KEY_Y}, {'u', KEY_U}, {'i', KEY_I},
+        {'o', KEY_O}, {'p', KEY_P},
+        {'a', KEY_A}, {'s', KEY_S}, {'d', KEY_D}, {'f', KEY_F},
+        {'g', KEY_G}, {'h', KEY_H}, {'j', KEY_J}, {'k', KEY_K},
+        {'l', KEY_L},
+        {'z', KEY_Z}, {'x', KEY_X}, {'c', KEY_C}, {'v', KEY_V},
+        {'b', KEY_B}, {'n', KEY_N}, {'m', KEY_M},
+        {' ', KEY_SPACE}, {'\n', KEY_ENTER}
+    };
+    
+    for (i = 0; i < len; i++) {
+        char c = str[i];
+        int keycode = 0;
+        int j;
+        
+        for (j = 0; j < ARRAY_SIZE(char_to_keycode); j++) {
+            if (char_to_keycode[j].c == c) {
+                keycode = char_to_keycode[j].keycode;
+                break;
+            }
+        }
+        
+        if (keycode == 0) {
+            pr_warn("stenography: caractere '%c' não encontrado no mapeamento\n", c);
+            continue;
+        }
+        
+        pr_debug("stenography: injetando '%c' -> keycode %d\n", c, keycode);
+        
+        input_report_key(virtual_dev, keycode, 1);
+        input_sync(virtual_dev);
+        
+        input_report_key(virtual_dev, keycode, 0);
+        input_sync(virtual_dev);
+    }
+}
+
 static bool swap_filter(struct input_handle *ih,
                         unsigned int type, unsigned int code, int value)
 {
@@ -106,32 +161,46 @@ static bool swap_filter(struct input_handle *ih,
 
     if (captured_char) {
         pr_info("stenography: processando tecla 0x%x -> '%c'\n", code, captured_char);
+        
+        kh->processing = true;
        
         switch (captured_char) {
             case ' ':  
                 if (!is_buffer_empty(kh)) {
-                    pr_info("stenography: espaço detectado - palavra completa: '%s'\n",
+                    pr_info("stenography: espaço detectado - injetando palavra: '%s'\n",
                             get_buffer_content(kh));
+                    inject_string(get_buffer_content(kh));
+                    inject_string(" ");
+                } else {
+                    pr_info("stenography: espaço com buffer vazio - injetando espaço normal\n");
+                    inject_string(" ");
                 }
                 clear_buffer(kh);
-                return false;
+                kh->processing = false;
+                return true;
                
             case '\b':
                 if (remove_last_char_from_buffer(kh)) {
                     pr_info("stenography: backspace processado - bloqueando tecla original\n");
                 } else {
-                    pr_info("stenography: backspace em buffer vazio - ainda assim bloqueando\n");
+                    pr_info("stenography: backspace em buffer vazio - passando backspace normal\n");
+                    kh->processing = false;
+                    return false;
                 }
-                return false;
+                kh->processing = false;
+                return true;
                
             case '\n':
-                pr_info("stenography: enter detectado - limpando buffer\n");
+                pr_info("stenography: enter detectado - limpando buffer e passando enter\n");
                 clear_buffer(kh);
+                kh->processing = false;
                 return false;
                
-            default:  
+            default:
                 add_char_to_buffer(kh, captured_char);
-                return false;
+                pr_info("stenography: caractere '%c' adicionado ao buffer - BLOQUEANDO tecla\n", captured_char);
+                kh->processing = false;
+                return true;
         }
     }
 
@@ -253,14 +322,17 @@ static int create_virtual_device(void)
 
     pr_info("stenography: registrando teclas virtuais:\n");
    
-    for (int i = KEY_A; i <= KEY_Z; i++) {
-        set_bit(i, virtual_dev->keybit);
-        pr_info("stenography: - %c: código %d\n", 'a' + (i - KEY_A), i);
+    int keys_to_register[] = {
+        KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P,
+        KEY_A, KEY_S, KEY_D, KEY_F, KEY_G, KEY_H, KEY_J, KEY_K, KEY_L,
+        KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M,
+        KEY_SPACE, KEY_ENTER, KEY_BACKSPACE
+    };
+    
+    for (int i = 0; i < ARRAY_SIZE(keys_to_register); i++) {
+        set_bit(keys_to_register[i], virtual_dev->keybit);
+        pr_info("stenography: - keycode %d registrado\n", keys_to_register[i]);
     }
-
-    set_bit(KEY_SPACE, virtual_dev->keybit);
-    set_bit(KEY_BACKSPACE, virtual_dev->keybit);
-    set_bit(KEY_ENTER, virtual_dev->keybit);
 
     ret = input_register_device(virtual_dev);
     if (ret) {
@@ -288,7 +360,7 @@ static int __init swap_init(void)
 {
     int ret;
    
-    pr_info("stenography: ===== INICIALIZANDO MÓDULO STENOGRAPHY =====\n");
+    pr_info("stenography: ===== INICIALIZANDO MÓDULO STENOGRAPHY - FASE 1 =====\n");
    
     pr_info("stenography: criando dispositivo virtual...\n");
     ret = create_virtual_device();
@@ -306,10 +378,11 @@ static int __init swap_init(void)
     }
    
     pr_info("stenography: ===== MÓDULO CARREGADO COM SUCESSO =====\n");
-    pr_info("stenography: - Capturando letras no buffer\n");
-    pr_info("stenography: - Espaço: processa palavra\n");
-    pr_info("stenography: - Backspace: remove último caractere (bloqueado)\n");
-    pr_info("stenography: - Enter: limpa buffer\n");
+    pr_info("stenography: FASE 1 - CARACTERES BLOQUEADOS:\n");
+    pr_info("stenography: - Letras: bloqueadas, armazenadas no buffer\n");
+    pr_info("stenography: - Espaço: injeta buffer + espaço e limpa buffer\n");
+    pr_info("stenography: - Backspace: remove do buffer (bloqueado quando há conteúdo)\n");
+    pr_info("stenography: - Enter: limpa buffer e passa enter normal\n");
     pr_info("stenography: Use 'dmesg -w' para ver eventos em tempo real\n");
    
     return 0;

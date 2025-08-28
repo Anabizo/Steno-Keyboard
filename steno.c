@@ -7,9 +7,23 @@
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Bizo");
-MODULE_DESCRIPTION("Stenography Keyboard - Fase 1");
+MODULE_DESCRIPTION("Stenography Keyboard");
 
 #define MAX_BUFFER_SIZE 64
+#define MAX_WORD_LENGTH 64
+
+struct steno_entry {
+    char abbreviation[16];  
+    char expansion[MAX_WORD_LENGTH]; 
+};
+
+static const struct steno_entry steno_dict[] = {
+    {"sec", "secretaria"},
+    {"vc", "voce"},
+    {"pq", "porque"}
+};
+
+#define DICT_SIZE ARRAY_SIZE(steno_dict)
 
 static struct input_dev *virtual_dev = NULL;
 
@@ -22,12 +36,36 @@ struct kb_handle {
 
 static void clear_buffer(struct kb_handle *kh);
 static void inject_string(const char* str);
+static const char* search_dictionary(const char* word);
 
 static void clear_buffer(struct kb_handle *kh)
 {
     kh->buffer_pos = 0;
     kh->buffer[0] = '\0';
     pr_info("stenography: buffer limpo\n");
+}
+
+static const char* search_dictionary(const char* word)
+{
+    int i;
+    
+    if (!word || strlen(word) == 0) {
+        pr_info("stenography: palavra vazia para busca\n");
+        return NULL;
+    }
+    
+    pr_info("stenography: buscando '%s' no dicionário...\n", word);
+    
+    for (i = 0; i < DICT_SIZE; i++) {
+        if (strcmp(steno_dict[i].abbreviation, word) == 0) {
+            pr_info("stenography: ENCONTRADO! '%s' -> '%s'\n", 
+                    word, steno_dict[i].expansion);
+            return steno_dict[i].expansion;
+        }
+    }
+    
+    pr_info("stenography: '%s' não encontrado no dicionário\n", word);
+    return NULL;
 }
 
 static bool add_char_to_buffer(struct kb_handle *kh, char c)
@@ -167,10 +205,22 @@ static bool swap_filter(struct input_handle *ih,
         switch (captured_char) {
             case ' ':  
                 if (!is_buffer_empty(kh)) {
-                    pr_info("stenography: espaço detectado - injetando palavra: '%s'\n",
-                            get_buffer_content(kh));
-                    inject_string(get_buffer_content(kh));
-                    inject_string(" ");
+                    const char* buffer_content = get_buffer_content(kh);
+                    const char* expanded_word;
+                    
+                    pr_info("stenography: espaço detectado - processando palavra: '%s'\n", buffer_content);
+                    
+                    expanded_word = search_dictionary(buffer_content);
+                    
+                    if (expanded_word) {
+                        pr_info("stenography: injetando palavra expandida: '%s'\n", expanded_word);
+                        inject_string(expanded_word);
+                        inject_string(" ");
+                    } else {
+                        pr_info("stenography: não encontrou no dicionário - injetando original: '%s'\n", buffer_content);
+                        inject_string(buffer_content);
+                        inject_string(" ");
+                    }
                 } else {
                     pr_info("stenography: espaço com buffer vazio - injetando espaço normal\n");
                     inject_string(" ");
@@ -185,7 +235,7 @@ static bool swap_filter(struct input_handle *ih,
                 } else {
                     pr_info("stenography: backspace em buffer vazio - passando backspace normal\n");
                     kh->processing = false;
-                    return false;
+                    return false; 
                 }
                 kh->processing = false;
                 return true;
@@ -194,13 +244,13 @@ static bool swap_filter(struct input_handle *ih,
                 pr_info("stenography: enter detectado - limpando buffer e passando enter\n");
                 clear_buffer(kh);
                 kh->processing = false;
-                return false;
+                return false; 
                
             default:
                 add_char_to_buffer(kh, captured_char);
                 pr_info("stenography: caractere '%c' adicionado ao buffer - BLOQUEANDO tecla\n", captured_char);
                 kh->processing = false;
-                return true;
+                return true; 
         }
     }
 
@@ -360,7 +410,7 @@ static int __init swap_init(void)
 {
     int ret;
    
-    pr_info("stenography: ===== INICIALIZANDO MÓDULO STENOGRAPHY - FASE 1 =====\n");
+    pr_info("stenography: ===== INICIALIZANDO MÓDULO STENOGRAPHY =====\n");
    
     pr_info("stenography: criando dispositivo virtual...\n");
     ret = create_virtual_device();
@@ -378,12 +428,23 @@ static int __init swap_init(void)
     }
    
     pr_info("stenography: ===== MÓDULO CARREGADO COM SUCESSO =====\n");
-    pr_info("stenography: FASE 1 - CARACTERES BLOQUEADOS:\n");
     pr_info("stenography: - Letras: bloqueadas, armazenadas no buffer\n");
-    pr_info("stenography: - Espaço: injeta buffer + espaço e limpa buffer\n");
+    pr_info("stenography: - Espaço: busca palavra no dicionário e injeta resultado\n");
     pr_info("stenography: - Backspace: remove do buffer (bloqueado quando há conteúdo)\n");
     pr_info("stenography: - Enter: limpa buffer e passa enter normal\n");
-    pr_info("stenography: Use 'dmesg -w' para ver eventos em tempo real\n");
+    pr_info("stenography: \n");
+    pr_info("stenography: DICIONÁRIO DE TESTE (%lu entradas):\n", DICT_SIZE);
+    for (int i = 0; i < DICT_SIZE; i++) {
+        pr_info("stenography: - '%s' -> '%s'\n", 
+                steno_dict[i].abbreviation, steno_dict[i].expansion);
+    }
+    pr_info("stenography: \n");
+    pr_info("stenography: EXEMPLOS DE USO:\n");
+    pr_info("stenography: - Digite 'sec' + espaço = 'secretaria '\n");
+    pr_info("stenography: - Digite 'vc' + espaço = 'voce '\n");
+    pr_info("stenography: - Digite 'pq' + espaço = 'porque '\n");
+    pr_info("stenography: - Digite 'hello' + espaço = 'hello ' (sem expansão)\n");
+    pr_info("stenography: Use 'make test' para ver eventos em tempo real\n");
    
     return 0;
 }

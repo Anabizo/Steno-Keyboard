@@ -32,6 +32,9 @@ __used __section("__versions") = {
 	{ 0xd1f07d8f, "__kmalloc_cache_noprof" },
 	{ 0xaffbf64b, "input_register_handle" },
 	{ 0xaffbf64b, "input_open_device" },
+	{ 0x9479a1e8, "strnlen" },
+	{ 0x888b8f57, "strcmp" },
+	{ 0xe54e0a6b, "__fortify_panic" },
 	{ 0xe4de56b4, "__ubsan_handle_load_invalid_value" },
 	{ 0x5531feea, "input_unregister_handler" },
 	{ 0xd272d446, "__fentry__" },
@@ -60,6 +63,9 @@ __used __section("__version_ext_crcs") = {
 	0xd1f07d8f,
 	0xaffbf64b,
 	0xaffbf64b,
+	0x9479a1e8,
+	0x888b8f57,
+	0xe54e0a6b,
 	0xe4de56b4,
 	0x5531feea,
 	0xd272d446,
@@ -87,6 +93,9 @@ __used __section("__version_ext_names") =
 	"__kmalloc_cache_noprof\0"
 	"input_register_handle\0"
 	"input_open_device\0"
+	"strnlen\0"
+	"strcmp\0"
+	"__fortify_panic\0"
 	"__ubsan_handle_load_invalid_value\0"
 	"input_unregister_handler\0"
 	"__fentry__\0"
@@ -103,4 +112,4 @@ MODULE_INFO(depends, "");
 
 MODULE_ALIAS("input:b*v*p*e*-e*1,*k*r*a*m*l*s*f*w*");
 
-MODULE_INFO(srcversion, "6A0473E5CDE9DA6D6D8FF2B");
+MODULE_INFO(srcversion, "3AF6939475FD20D7FE7C640");

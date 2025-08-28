@@ -4,6 +4,7 @@
 #include <linux/slab.h>
 #include <linux/uinput.h>
 #include <linux/string.h>
+#include <linux/sort.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Bizo");
@@ -18,8 +19,8 @@ struct steno_entry {
 };
 
 static const struct steno_entry steno_dict[] = {
-    {"sec", "secretaria"},
-    {"vc", "voce"},
+    {"ces", "secretaria"},
+    {"cv", "voce"},
     {"pq", "porque"}
 };
 
@@ -45,26 +46,40 @@ static void clear_buffer(struct kb_handle *kh)
     pr_info("stenography: buffer limpo\n");
 }
 
+static int compare_chars(const void *a, const void *b)
+{
+    return (*(char*)a - *(char*)b);
+}
+
 static const char* search_dictionary(const char* word)
 {
-    int i;
+    char sorted_word[256]; 
+    int i, len;
     
     if (!word || strlen(word) == 0) {
         pr_info("stenography: palavra vazia para busca\n");
         return NULL;
     }
     
-    pr_info("stenography: buscando '%s' no dicionário...\n", word);
+    len = strlen(word);
+    strncpy(sorted_word, word, len);
+    sorted_word[len] = '\0';
+    
+    pr_info("stenography: palavra original: '%s'\n", word);
+    sort(sorted_word, len, sizeof(char), compare_chars, NULL);
+    pr_info("stenography: palavra ordenada: '%s'\n", sorted_word);
+    
+    pr_info("stenography: buscando '%s' no dicionário...\n", sorted_word);
     
     for (i = 0; i < DICT_SIZE; i++) {
-        if (strcmp(steno_dict[i].abbreviation, word) == 0) {
-            pr_info("stenography: ENCONTRADO! '%s' -> '%s'\n", 
-                    word, steno_dict[i].expansion);
+        if (strcmp(steno_dict[i].abbreviation, sorted_word) == 0) {
+            pr_info("stenography: ENCONTRADO! '%s' -> '%s'\n",
+                    sorted_word, steno_dict[i].expansion);
             return steno_dict[i].expansion;
         }
     }
     
-    pr_info("stenography: '%s' não encontrado no dicionário\n", word);
+    pr_info("stenography: '%s' não encontrado no dicionário\n", sorted_word);
     return NULL;
 }
 

@@ -1108,6 +1108,7 @@ deps_steno.o := \
   /usr/src/linux-headers-6.14.0-27-generic/include/uapi/linux/mei.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/uapi/linux/mei_uuid.h \
   /usr/src/linux-headers-6.14.0-27-generic/include/uapi/linux/uinput.h \
+  /usr/src/linux-headers-6.14.0-27-generic/include/linux/sort.h \
 
 steno.o: $(deps_steno.o)
 
